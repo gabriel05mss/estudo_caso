@@ -1,0 +1,371 @@
+---
+title: "Estudo de Caso"
+author: "Gabriel Moreira da Silva"
+format: pdf
+editor: visual
+execute:
+  echo: false
+  warning: false
+  message: false
+  cache: false
+---
+
+\newpage
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(tidyr)
+library(stats)
+library(tidyverse)
+library(dplyr)
+library(sf)
+library(geobr)
+library(viridis)
+library(gridExtra)
+library(reshape2)
+```
+
+```{r}
+df <- read_xlsx("C:/Users/gmore/OneDrive/Desktop/MCCD/susep.xlsx")
+#tirar linhas desnecessarias 
+df <- df[-c(1 : 6),]
+df <- df[-411 , ]
+
+
+# transformar primeira linha em titulo da coluna
+colnames(df) <- c("categoria","regiao","grupo","ano_modelo","sexo_condutor",
+                  "faixa_etaria","IS_media","expostos","premio_medio",
+                  "freq_incendio_roubo","ind_incendio_roubo","freq_colisao",
+                  "ind_colisao","freq_outras","ind_outras")
+
+# tirar caracteris especiais do df
+#for (i in 1:nrow(df)) {
+  #for (j in 1:ncol(df)) {
+    #df[i, j] <- gsub("[^[:alnum:][:space:]]", "", df[i, j])
+  #}
+#}
+
+```
+
+# Introdução
+
+Neste relatório, apresentamos uma análise detalhada dos dados fornecidos. O objetivo é fornecer insights valiosos e recomendações acionáveis com base nos padrões identificados nos dados.
+
+# Descrição das Variaveis
+
+Este documento apresenta uma análise detalhada das variáveis que foram investigadas no âmbito deste estudo. As variáveis são elementos fundamentais em qualquer pesquisa, pois representam os diferentes aspectos, características ou fenômenos que estão sendo estudados e analisados. Uma compreensão clara e precisa das variáveis é essencial para interpretar os resultados obtidos e para extrair conclusões significativas.
+
+É importante ressaltar que a compreensão completa das variáveis é crucial para garantir a validade e a confiabilidade dos resultados da pesquisa. Portanto, encorajamos os leitores a revisar cuidadosamente as descrições das variáveis apresentadas a seguir, a fim de obter uma compreensão sólida do contexto e das nuances envolvidas na análise dos dados.
+
+## Região
+
+O identificador da variável é 'região', que possui o tipo caracter. Todas as regiões contêm 10 observações e não há valores ausentes (NA) presentes nos dados. Para uma descrição mais abrangente, agrupamos essas observações por estados e regiões.
+
+```{r}
+#descrição da região agrupar como estados
+df <- separate(df, col = regiao, into = c("estado", "regiao"), sep = " - ")
+regiao_por_estado <- aggregate(regiao ~ estado, data = df, FUN = function(x) length(unique(x)))
+
+```
+
+```{r}
+#| tbl-cap: Tabela com UF's que possuem mais de uma região especificada na pesquisa
+#| label: tbl-maiores_regioes
+
+
+
+maiores_regioes <- filter(regiao_por_estado, regiao >= 2)
+
+
+
+knitr::kable(maiores_regioes , caption = "estados com mais reuniões")
+```
+
+## Sexo do Condutor
+
+O identificador da variavel é 'sexo_condutor' , possui tipo caracter , não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+#sexo do condutor
+
+#    any(is.na(df$sexo_condutor))
+
+# Somando os expostos por sexo do condutor
+df$expostos <- as.numeric(df$expostos)
+dados_somados <- aggregate(expostos ~ sexo_condutor, data = df, FUN = sum)
+
+# Criando o gráfico
+ggplot(dados_somados, aes(x = sexo_condutor, y = expostos/1000000, fill = sexo_condutor)) +
+  geom_bar(stat = "identity") +
+  labs(title = " Sexo do Condutor por milhão",
+       x = "Sexo do Condutor", y = " Freq", fill = " Sexo do condutor") +
+  scale_fill_manual(values = c("Masculino" = "skyblue", "Feminino" = "pink"))
+```
+\newpage
+## Faixa Etaria
+
+O identificador da variavel é 'Faixa_etaria' , é do tipo caracter , não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+#     any(is.na(df$faixa_etaria))
+
+dados_somados <- aggregate(expostos ~ faixa_etaria, data = df, FUN = sum)
+
+# Criando o gráfico
+ggplot(dados_somados, aes(x = faixa_etaria, y = expostos/1000000, fill = faixa_etaria)) +
+  geom_bar(stat = "identity") +
+  labs(title = " Faixa Etaria por milhão",
+       x = "Faixa Etaria", y = "Freq", fill = "Faixa etaria")+
+  scale_fill_manual(values = c("Entre 18 e 25 anos" = "#66cdaa", "Entre 26 e 35 anos" = "#4169e1", "Entre 36 e 45 anos" = "#d2b48c", "Entre 46 e 55 anos" = "#bc8f8f" , "Maior que 55 anos" = "#778899"))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+\newpage
+## IS médio
+
+A 'Importância Segurada Média', referesse ao valor médio dos veículos segurados. Essa métrica desempenha um papel fundamental na avaliação de riscos e no cálculo de prêmios de seguro. Quanto maior a 'Importância Segurada Média', maior tende a ser o valor dos sinistros a serem indenizados.
+
+```{r}
+df$IS_media <- as.numeric(df$IS_media)
+
+ggplot(df, aes(x = IS_media)) +
+  geom_histogram(binwidth = 800, fill = "skyblue", color = "black") +
+  labs(title = "Histograma de is médio agrupado",
+       x = "is_media", y = "Freq")
+```
+\newpage
+## Premio Médio
+
+O 'Prêmio Médio (R\$)' representa o montante financeiro médio pago pelos segurados às seguradoras em troca da cobertura de seguro. Esse valor é calculado com base em diversas variáveis. O 'Prêmio Médio' é essencial para seguradoras e segurados, pois influencia diretamente o custo total do seguro e, portanto, o valor que o segurado deve desembolsar para proteger seu patrimônio. Para as seguradoras, o 'Prêmio Médio' é uma fonte de receita importante e uma medida do risco agregado que estão assumindo ao fornecer cobertura. Por outro lado, para os segurados, o 'Prêmio Médio' representa o custo esperado de proteção contra possíveis perdas financeiras decorrentes de sinistros. Assim, essa variável desempenha um papel crucial na tomada de decisões tanto para seguradoras quanto para segurados, influenciando as políticas de precificação e a escolha de produtos de seguro. identificador 'premio_medio' , tipo numerica, não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+#    any(is.na(df$premio_medio))
+df$premio_medio <- as.numeric(df$premio_medio)
+
+
+ggplot(df, aes(x = premio_medio)) +
+  geom_histogram(binwidth = 50, fill = "skyblue", color = "black") +
+  labs(title = "Histograma de Premio Medio agrupado",
+       x = "Premio Medio", y = "Freq")
+```
+\newpage
+## Frequencia incêndio e roubo
+
+A variável "Freq. Incêncio e Roubo" representa a frequência de ocorrência de incêndios e roubos. Ela é composta pelo número de incidentes registrados ao longo de um período específico, geralmente em uma determinada área geográfica. Essa medida é essencial para avaliar a segurança e o risco associado a uma região, sendo útil para diversos fins. identificador 'freq_incendio_roubo' , tipo numerica, não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+#   any(is.na(df$freq_incendio_roubo))
+df$freq_incendio_roubo <- as.numeric(df$freq_incendio_roubo)
+
+dados_somados2 <- aggregate(freq_incendio_roubo ~ estado, data = df, FUN = sum)
+
+```
+
+```{r}
+mapa_brasil <- read_state(code = "all" , showProgress = FALSE)
+colnames(mapa_brasil)[colnames(mapa_brasil) == "abbrev_state"] <- "estado"
+dados <- full_join(mapa_brasil , dados_somados2 , by = "estado")
+```
+
+```{r ,echo= FALSE, fig.height = 8 , fig.width= 10}
+ggplot()+
+  geom_sf(data = dados , color = "white" , aes(fill= log(freq_incendio_roubo))) +
+  labs(title = "Ln da frequência de incêndio e roubo por estado" , fill = "ln frequencia incêndio roubo") + 
+  scale_fill_viridis_b(option = "D") +
+  theme_minimal();
+```
+\newpage
+## indenização por incêndio e roubo
+
+A variável Indenização por Incêndio e Roubo representa o montante total de compensações financeiras concedidas em caso de incêndio e roubo. Essas indenizações são pagas por seguradoras a indivíduos ou empresas que possuem apólices de seguro contra esses tipos de eventos.Essa variável é crucial para as seguradoras, ela influencia diretamente na avaliação do risco e na precificação das apólices. identificador 'ind_incendio_roubo', tipo numerica, não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+#    any(is.na(df$ind_incendio_roubo))
+df$ind_incendio_roubo<- as.numeric(df$ind_incendio_roubo)
+
+ggplot(df, aes(x = ind_incendio_roubo/1000000)) +
+  geom_histogram(bins = 20, fill = "skyblue", color = "black") +
+  labs(title = "Histograma de indenização por incêndio e roubo por milhão",
+       x = "Indenização por incêndio e roubo", y = "freq")
+```
+\newpage
+## Frequência de colisão
+
+A variável "Freq. Colisão" representa o número de colisões que ocorreram em uma área. Essa variável é uma medida quantitativa da frequência com que ocorrem acidentes de trânsito envolvendo colisões entre veículos. identificador 'freq_colisão', tipo numerica, não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+df$freq_colisao<- as.numeric(df$freq_colisao)
+dados_somados3 <- aggregate(freq_colisao ~ estado, data = df, FUN = sum)
+dados2 <- full_join(mapa_brasil , dados_somados3 , by = "estado")
+```
+
+```{r , fig.height = 8 , fig.width= 10}
+ggplot()+
+  geom_sf(data = dados2 , color = "white" , aes(fill= log(freq_colisao))) +
+  labs(title = "Ln da frequência de colisão por estado", fill = "ln frequencia outras") + 
+  scale_fill_viridis_b(option = "D" , , begin = 0, end = 0.8, direction = -1) +
+  theme_minimal();
+```
+\newpage
+## indenização por colisão
+
+A variável Indenização por colisão representa o montante total de compensações financeiras concedidas em caso de colisão. Essas indenizações são pagas por seguradoras a indivíduos ou empresas que possuem apólices de seguro contra esses tipos de eventos.Essa variável é crucial para as seguradoras, ela influencia diretamente na avaliação do risco e na precificação das apólices. identificador 'ind_colisão', tipo numerica, não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+df$ind_colisao <- as.numeric(df$ind_colisao)
+
+ggplot(df, aes(x = ind_colisao/1000000)) +
+  geom_histogram(bins = 20, fill = "skyblue", color = "black") +
+  labs(title = "Histograma de indenização por colisão por milhão",
+       x = "Indenização por colisão", y = "freq")
+```
+\newpage
+## Frequencia outras
+
+A variável "Freq. Outras" representa o número de acidentes que ocorreram em um determinado período de tempo, excluindo aqueles especificamente classificados ou categorizados. Em outras palavras, ela engloba todos os acidentes que não se enquadram em categorias específicas ou que não foram detalhados na análise. A análise dessa variável pode ser útil para identificar padrões ou tendências de acidentes que não são abrangidos pelas categorias especificadas acima. identificador 'freq_outros', tipo numerica, não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+df$freq_outras<- as.numeric(df$freq_outras)
+dados_somados4 <- aggregate(freq_outras ~ estado, data = df, FUN = sum)
+dados3 <- full_join(mapa_brasil , dados_somados4 , by = "estado")
+```
+
+```{r ,  fig.height = 8 , fig.width= 10}
+ggplot() +
+  geom_sf(data = dados3, color = "white", aes(fill = log(freq_outras))) +
+  labs(title = "Ln da frequência de outros acidentes por estado", fill = "ln frequancia outras") + 
+  scale_fill_viridis_b(option = "D", begin = 0.3, end = 1, direction = -1) +
+  theme_minimal();
+```
+\newpage
+## indenização outros
+
+A variável Indenização por outrod acidentes representa o montante total de compensações financeiras concedidas em caso de acidentes que não foram especificados acima. Essas indenizações são pagas por seguradoras a indivíduos ou empresas que possuem apólices de seguro contra esses tipos de eventos.Essa variável é crucial para as seguradoras, ela influencia diretamente na avaliação do risco e na precificação das apólices. identificador 'ind_outras', tipo numerica, não há valores ausentes (NA) presentes nos dados.
+
+```{r}
+df$ind_outras <- as.numeric(df$ind_outras)
+
+ggplot(df, aes(x = ind_outras/1000000)) +
+  geom_histogram(bins = 20, fill = "skyblue", color = "black") +
+  labs(title = "Histograma de indenização de outros acidente por milhão",
+       x = "Indenização por outros", y = "freq")
+```
+
+# Análise e Respostas Relevantes
+
+Após uma análise detalhada dos dados, observou-se que o sexo masculino demonstra uma exposição mais significativa em comparação ao sexo feminino. Esta conclusão foi corroborada por meio de gráficos que evidenciam a distribuição dos expostos por sexo.
+
+Ao segmentar os expostos por sexo e faixa etária, pôde-se notar variações nas distribuições. Embora entre as idades de 18 e 25 anos não se observasse uma diferença considerável na exposição entre os sexos, entre 26 e 35 anos e entre 36 e 45 anos, o sexo feminino apresentou uma proporção maior de expostos em relação ao sexo masculino. Por sua vez, entre 46 e 55 anos, a presença masculina mostrou-se ligeiramente superior à feminina. Já acima de 55 anos, a maioria dos expostos pertence ao sexo masculino.
+
+Além disso, ao considerar exclusivamente a idade, constatou-se que as maiores frequências de expostos correspondem aos indivíduos com mais de 55 anos, seguidos pelas faixas etárias de 36 a 45 anos, 46 a 55 anos, 26 a 35 anos, e, por último, 18 a 25 anos.
+
+Essas análises fornecem uma visão abrangente e detalhada da distribuição de expostos por sexo e faixa etária, permitindo uma compreensão mais aprofundada do panorama dos acidentes.
+
+```{r}
+dados_somados <- aggregate(expostos ~ sexo_condutor, data = df, FUN = sum)
+
+# Criando o gráfico
+grafico_1 <- ggplot(dados_somados, aes(x = sexo_condutor, y = expostos/1000000, fill = sexo_condutor)) +
+  geom_bar(stat = "identity") +
+  labs(title = " Sexo do Condutor por milhão",
+       x = "Sexo do Condutor", y = " expostos por milhão", fill = " Sexo do Condutor") +
+  scale_fill_manual(values = c("Masculino" = "#6573EF", "Feminino" = "#EDA6EE"))
+
+dados_somados2 <- aggregate(expostos ~ sexo_condutor + faixa_etaria, data = df, FUN = sum)
+
+grafico_2 <- ggplot(dados_somados2, aes(x = faixa_etaria, y = expostos/1000000, fill = sexo_condutor)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Expostos por Faixa Etária e Sexo por milhão") +
+  xlab("Faixa Etária e Sexo") +
+  ylab("Expostos por milhão") +
+  scale_fill_manual(values = c("#EDA6EE", "#6573EF")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(fill = FALSE)
+
+dados_somados3 <- aggregate(expostos ~ faixa_etaria, data = df, FUN = sum)
+
+# Criando o gráfico
+grafico_3 <- ggplot(dados_somados3, aes(x = faixa_etaria, y = expostos/1000000, fill = faixa_etaria)) +
+  geom_bar(stat = "identity") +
+  labs(title = " Faixa Etaria por milhão",
+       x = "Faixa Etaria", y = "expostos por milhão" , fill = "Faixa etaria")+
+  scale_fill_manual(values = c("Entre 18 e 25 anos" = "#66cdaa", "Entre 26 e 35 anos" = "#4169e1", "Entre 36 e 45 anos" = "#d2b48c", "Entre 46 e 55 anos" = "#bc8f8f" , "Maior que 55 anos" = "#778899"))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+grafico_1
+grafico_2
+grafico_3
+```
+\newpage
+
+Após a compilação dos dados em uma tabela que registra o número de habitantes em cada região, torna-se evidente que a região Sudeste detém a maior quantidade de habitantes expostos a acidentes, seguida, respectivamente, pelas regiões Sul, Nordeste, Norte e Centro-Oeste.
+
+```{r}
+
+dados3 <- full_join(mapa_brasil , df , by = "estado")
+dados_somados_1 <- aggregate(expostos ~ name_region, data = dados3, FUN = sum)
+colnames(dados_somados_1)[colnames(dados_somados_1) == "name_region"] <- "Regiões"
+dados_somados_1$expostos <- format(dados_somados_1$expostos, big.mark = ",", scientific = FALSE)
+#| tbl-cap: Tabela com expostos por regiões
+#| label: regiões
+
+knitr::kable(dados_somados_1 , caption = "Regiões")
+
+```
+
+No contexto das indenizações por acidentes, uma análise revela que as indenizações médias são frequentemente mais altas para o sexo com maior ocorrência de acidentes e na faixa etária mais afetada
+
+```{r}
+media_indenizacao_sexo <- aggregate(cbind(ind_incendio_roubo, ind_colisao, ind_outras) ~ sexo_condutor, data = df, FUN = mean)
+
+dados_long_sexo <- melt(media_indenizacao_sexo, id.vars = "sexo_condutor")
+
+# Plotar o gráfico de barras
+ggplot(dados_long_sexo, aes(x = variable, y = value/1000000, fill = sexo_condutor)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "media de indenização por sexo do condutor",x = "Variável", y = "Média da Indenização por milhão", fill = "Gênero") +
+  scale_fill_manual(values = c("Masculino" = "#6573EF", "Feminino" = "#EDA6EE")) +
+  scale_x_discrete(labels = c("Incêndio e roubo", " Colisão", "Outras"))+
+  theme_minimal()
+
+media_indenizacao_idade <- aggregate(cbind(ind_incendio_roubo, ind_colisao, ind_outras) ~ faixa_etaria, data = df, FUN = mean)
+
+dados_long_idade <- melt(media_indenizacao_idade, id.vars = "faixa_etaria")
+
+ggplot(dados_long_idade, aes(x = variable, y = value/1000000, fill = faixa_etaria)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "media de indenização por faixa etaria",x = "Tipo de acidente", y = "Média da Indenização por milhão", fill = "Faixa etaria") +
+  scale_fill_manual(values = c("Entre 18 e 25 anos" = "#66cdaa", "Entre 26 e 35 anos" = "#4169e1", "Entre 36 e 45 anos" = "#d2b48c", "Entre 46 e 55 anos" = "#bc8f8f" , "Maior que 55 anos" = "#778899"))+
+  scale_x_discrete(labels = c("Incêndio e roubo", " Colisão", "Outras"))+
+  theme_minimal()
+```
+\newpage
+Ao examinar o prêmio médio do seguro, observa-se que, em média, o sexo masculino paga um prêmio maior em comparação ao sexo feminino.
+Considerando que o sexo masculino está mais exposto a acidentes, é natural resultar em prêmios mais elevados para esse grupo.
+
+No entanto, ao aprofundar a análise e considerar a faixa etária dos segurados, surge uma dinâmica diferente. Descobre-se que as faixas etárias menos expostas a acidentes tendem a pagar um prêmio médio maior.
+```{r}
+dados_agregados_PM <- aggregate(premio_medio ~ sexo_condutor + faixa_etaria, data = df, FUN = mean)
+
+ggplot(dados_agregados_PM, aes(x = sexo_condutor, y = premio_medio, fill = faixa_etaria)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "premio medio por sexo e faixa etaria do condutor",x = "sexo do condutor", y = "premio medio por milhão", fill = "Faixa etaria") +
+  scale_fill_manual(values = c("Entre 18 e 25 anos" = "#66cdaa", "Entre 26 e 35 anos" = "#4169e1", "Entre 36 e 45 anos" = "#d2b48c", "Entre 46 e 55 anos" = "#bc8f8f" , "Maior que 55 anos" = "#778899"))+
+  theme_minimal()
+```
+```{r, fig.height=8,fig.width=10}
+soma_frequencia <- aggregate(cbind(freq_incendio_roubo, freq_colisao, freq_outras) ~ grupo, data = df, FUN=sum)
+
+soma_freq_long<- melt(soma_frequencia, id.vars = "grupo")
+
+ggplot(soma_freq_long, aes(x = "", y = value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  coord_polar("y") +
+  labs(title  = "Tipos de sinistros",fill = "tipos de acidentes") +
+  scale_fill_manual(values = c("freq_incendio_roubo" = "#4169e1", "freq_colisao" = "#66cdaa", freq_outras = "#d2b48c"), 
+                    labels = c("Incêndio e Roubo", "Colisão", "Outras")) +
+  theme_void()
+
+```
+```
+
